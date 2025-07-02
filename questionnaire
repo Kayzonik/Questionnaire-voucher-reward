@@ -1,0 +1,181 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Piso WiFi Quiz Challenge</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: linear-gradient(to right, #4e54c8, #8f94fb); color: #fff; text-align: center; padding: 20px; }
+    h1 { margin-bottom: 10px; }
+    .quiz-box { background: rgba(0, 0, 0, 0.4); padding: 20px; border-radius: 15px; max-width: 600px; margin: auto; }
+    .question { font-size: 20px; margin: 15px 0; }
+    .option { display: block; margin: 10px; padding: 10px; background: #fff; color: #000; border-radius: 10px; cursor: pointer; transition: 0.3s; }
+    .option:hover { background: #d4d4d4; }
+    .hidden { display: none; }
+    button { margin-top: 20px; padding: 10px 20px; border: none; border-radius: 8px; background: #00c6ff; color: #fff; cursor: pointer; font-size: 16px; }
+    #admin-panel { display: none; background: #222; padding: 20px; margin-top: 30px; border-radius: 15px; }
+    textarea, input[type='password'] { width: 90%; padding: 8px; margin: 8px 0; border-radius: 5px; border: none; }
+    .used { text-decoration: line-through; color: gray; }
+    ul { list-style: none; padding: 0; }
+    li { color: #fff; margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>Piso WiFi Quiz Game</h1>
+  <div class="quiz-box" id="quiz-box">
+    <div id="question-box"></div>
+    <div id="options-box"></div>
+    <button onclick="nextQuestion()" id="next-btn" class="hidden">Next</button>
+  </div>
+  <div id="result-box"></div>
+  <div id="voucher-box"></div><br><a href="#" onclick="promptAdminAccess()">Admin Panel</a>
+
+  <div id="admin-panel">
+    <h3>Admin Control Panel</h3>
+    <label>Password: <input type="password" id="admin-pass"></label><br>
+    <button onclick="loginAdmin()">Login</button><div id="admin-controls" class="hidden">
+  <h4>Manage Questions</h4>
+  <textarea id="question-input" placeholder="Format: Question?|Answer1|Answer2|Answer3|Answer4|CorrectAnswer (number)"></textarea><br>
+  <button onclick="saveQuestions()">Save Questions</button>
+  <h4>Manage Vouchers</h4>
+  <textarea id="voucher-input"></textarea><br>
+  <button onclick="saveVouchers()">Save Vouchers</button>
+  <ul id="voucher-list"></ul>
+</div>
+
+  </div>  <script>
+    const defaultPassword = "1234"; // Changeable admin password
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let questions = [];
+
+    const questionBox = document.getElementById("question-box");
+    const optionsBox = document.getElementById("options-box");
+    const nextBtn = document.getElementById("next-btn");
+    const resultBox = document.getElementById("result-box");
+    const voucherBox = document.getElementById("voucher-box");
+
+    function loadQuestions() {
+      questions = JSON.parse(localStorage.getItem("quiz_questions") || "[]");
+    }
+
+    function startQuiz() {
+      loadQuestions();
+      currentQuestionIndex = 0;
+      score = 0;
+      resultBox.innerHTML = "";
+      voucherBox.innerHTML = "";
+      showQuestion();
+    }
+
+    function showQuestion() {
+      const q = questions[currentQuestionIndex];
+      if (!q) return;
+      questionBox.innerHTML = `<div class='question'>${q.q}</div>`;
+      optionsBox.innerHTML = "";
+      q.options.forEach((opt, i) => {
+        const div = document.createElement("div");
+        div.className = "option";
+        div.textContent = opt;
+        div.onclick = () => selectAnswer(i + 1);
+        optionsBox.appendChild(div);
+      });
+      nextBtn.classList.add("hidden");
+    }
+
+    function selectAnswer(selected) {
+      const correct = questions[currentQuestionIndex].answer;
+      if (selected === correct) score++;
+      nextBtn.classList.remove("hidden");
+      document.querySelectorAll('.option').forEach(opt => opt.onclick = null);
+    }
+
+    function nextQuestion() {
+      currentQuestionIndex++;
+      if (currentQuestionIndex >= questions.length) {
+        finishQuiz();
+      } else {
+        showQuestion();
+      }
+    }
+
+    function finishQuiz() {
+      resultBox.innerHTML = `You scored ${score}/${questions.length}`;
+      if (score === questions.length) {
+        giveVoucher();
+      } else {
+        voucherBox.textContent = "Try again to get a perfect score!";
+      }
+    }
+
+    function giveVoucher() {
+      let vouchers = JSON.parse(localStorage.getItem("vouchers") || "[]");
+      if (vouchers.length > 0) {
+        const code = vouchers.shift();
+        localStorage.setItem("vouchers", JSON.stringify(vouchers));
+        voucherBox.innerHTML = `<strong>🎉 Congratulations! Your Voucher: ${code}</strong>`;
+        updateVoucherList();
+      } else {
+        voucherBox.textContent = "No vouchers available.";
+      }
+    }
+
+    function promptAdminAccess() {
+      document.getElementById("admin-panel").style.display = "block";
+    }
+
+    function loginAdmin() {
+      const input = document.getElementById("admin-pass").value;
+      if (input === defaultPassword) {
+        document.getElementById("admin-controls").classList.remove("hidden");
+        loadAdminFields();
+      } else {
+        alert("Incorrect password");
+      }
+    }
+
+    function saveQuestions() {
+      const lines = document.getElementById("question-input").value.trim().split("\n");
+      const parsed = lines.map(line => {
+        const parts = line.split("|");
+        return {
+          q: parts[0],
+          options: parts.slice(1, 5),
+          answer: parseInt(parts[5])
+        };
+      });
+      localStorage.setItem("quiz_questions", JSON.stringify(parsed));
+      alert("Questions saved!");
+      startQuiz();
+    }
+
+    function saveVouchers() {
+      const lines = document.getElementById("voucher-input").value
+        .split("\n").map(x => x.trim()).filter(x => x);
+      localStorage.setItem("vouchers", JSON.stringify(lines));
+      updateVoucherList();
+      alert("Saved " + lines.length + " vouchers!");
+    }
+
+    function updateVoucherList() {
+      const vouchers = JSON.parse(localStorage.getItem("vouchers") || "[]");
+      const list = document.getElementById("voucher-list");
+      list.innerHTML = "";
+      vouchers.forEach(v => {
+        const li = document.createElement("li");
+        li.textContent = v;
+        list.appendChild(li);
+      });
+    }
+
+    function loadAdminFields() {
+      const vouchers = JSON.parse(localStorage.getItem("vouchers") || "[]");
+      const questions = JSON.parse(localStorage.getItem("quiz_questions") || "[]");
+      document.getElementById("voucher-input").value = vouchers.join("\n");
+      document.getElementById("question-input").value = questions.map(q => `${q.q}|${q.options.join("|")}|${q.answer}`).join("\n");
+      updateVoucherList();
+    }
+
+    // Start the game
+    startQuiz();
+  </script></body>
+</html>	72:19:AF:F0:08:35
